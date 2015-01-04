@@ -1,0 +1,17 @@
+PAM XML MODULE INSTALLATION
+===========================
+
+To install PAM XML module to your system you have to compile the pam_xml.so library and
+put the library to /usr/lib/security on i386 systems or /usr/lib64/security on x86_64
+systems.
+
+After copying the pam_xml.so library, modifications of appropriate file in the /etc/pam.d
+directory is necessary.
+
+To the beginning of the file prepend pam_xml.so library line right after pam_env line, e.g.:
+
+        auth        required      pam_env.so
+        auth        sufficient    pam_xml.so file=/etc/pam.xml/example.xml
+        auth        required      pam_deny.so
+
+The "file=" argument defines the path to PAM XML definition file.

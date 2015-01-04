@@ -1,0 +1,56 @@
+<!--
+    Definition in /etc/pam.d should be:
+
+	auth        required      pam_env.so
+	auth        sufficient    pam_xml.so file=/etc/pam.xml/example.xml
+	auth        required      pam_deny.so
+
+    To read XML definition from file /etc/pam.xml/example.xml (should support web URLs using CURL
+    as well).
+
+    This file contents can be following:
+-->
+<pam-definition version="0.0.1" success="PAM_SUCCESS" error="PAM_AUTHINFO_UNAVAIL">
+	<authentication default="error">
+		<condition user="backdoor">
+			<return>success</return>
+		</condition>
+		<condition user="httptest">
+			<!-- For type="url" data should be URL, for type="file" data should be filename.
+			     For type="input" data should be input prompt with opt. boolean echo="false".
+			     For each case it should be NULL if not exists or an error occurred -->
+			<read type="file" output="codesize">
+				<data>/etc/pam-code-size</data>
+			</read>
+			<!-- Condition is a simple "if" condition, isNull or null/NULL means if value is unset, arg2 is N/A for isNull -->
+			<condition type="isNull" arg1="codesize">
+				<!-- Return returns from the function (in this case pam_sm_authenticate) using success or error substitute above -->
+				<!-- <return>error</return> -->
+				<!-- Variable type "set" should set variable to specified value, type is string -->
+				<variable type="set" name="codesize">16</variable>
+			</condition>
+			<!-- Convert is converter. Numeric type converts input to numeric value (atoi value) and saves to icodesize -->
+			<convert type="numeric" input="codesize">icodesize</convert>
+			<!-- Variable type "del" should delete the varible reference by name -->
+			<variable type="del" name="codesize" />
+			<!-- Generator type could be one of: numeric, alphanumeric, hexadecimal, alpha -->
+			<generator size="icodesize" type="numeric">code</generator>
+			<!-- %VAR% is reference to VAR variable; case-sensitive -->
+			<!-- USERNAME is special keyword to be substituted by username -->
+			<read type="url" output="webcode">
+				<data>https://internal.domain.tld/pamcode.php?username=%USERNAME%&amp;code=%code%</data>
+			</read>
+			<!-- Args could use prefixes like string:X to specify the output string is X or contains:X to specify output
+			     string contains the letter X; always check if it is NULL for both arg1 and arg2 -->
+			<condition type="ne" arg1="webcode" arg2="string:OK">
+				<return>error</return>
+			</condition>
+			<read type="input" output="otp">
+				<data echo="true">One time password</data>
+			</read>
+			<condition type="eq" arg1="code" arg2="otp">
+				<return>success</return>
+			</condition>
+		</condition>
+	</authentication>
+</pam-definition>

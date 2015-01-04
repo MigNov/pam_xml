@@ -1,0 +1,76 @@
+PAM XML DEFINITION FILE
+=======================
+
+The PAM XML definition file have to begin by pam-definition root node with mandatory
+argument of version and optional success and error global arguments.
+
+After this definition functional node should be present, e.g. authentication node.
+For functional nodes the default return value could be defined using the "default"
+keyword. This value defaults to "error" if not set, however, no harm setting it
+once again.
+
+This node could contain operations and conditions:
+
+1) Condition block
+------------------
+
+Condition keyword can take "user" argument to verify the username, or "type" argument
+with options "isNull" or simply "null" (or "NULL"), "ne" as non-equal sign or "eq" as
+equal sign. The arg1 should be the first variable name and the arg2 should be the second
+variable name with exceptions of "string:" or "contains:" prefixes that specify we're
+working with the strings and not variables. The "string:" specifies we need the variable
+in the second arg to match string after the colon and "contains:" specifies we need that
+variable to contain string after the colon sign.
+
+2) Read block
+-------------
+
+The read block can take one of three options for "type" argument: file, url or input.
+Type "file" can be used to read the file specified by "data" argument from the filesystem.
+The result of this filewill be saved to variable referenced by the "output" argument.
+The "url" type can be used to access the URL, typically a web server, defined in the
+"data" argument with variable between percent signs (%) substituted by the variable
+values. There are also some special variables like %USERNAME% that will be substituted
+by the username of the user being logged-in or %RHOST% that will be substituted by
+remote hostname (in case of SSH connection - will be NULL for case of local connection).
+The "input" type will show user a prompt defined in "data" with optional echoing based
+on the "echo" attribute for the "data" argument, this attribute defaults to false.
+
+For all cases the value saved to "output" argument is NULL if read fails (file does not
+exist, URL is not accessible, user breaks execution of PAM_CONV dialog etc.).
+
+3) Variable node
+----------------
+
+The variable node can be used to modify the variable values. Usually to set another value
+or delete a value.
+
+To set a value you have to provide 2 arguments and the value in the tag body. First argument
+have to be type argument set to "set" keyword and second have to be the name of the variable
+to be set. The tag body will be used as the variable referenced in the "name" argument in
+it's string form.
+
+To delete a value (and free memory) the type should be "del" with the name argument as the
+reference to variable to be freed.
+
+4) Convert node
+---------------
+
+Convert keyword is the converter of one argument type to another. Usually it can be used to
+convert string to integer type by settings type to "numeric" and input to name of the input
+variable. The tag body specifies the name of the variable to store converted value to.
+
+5) Generator node
+-----------------
+
+Generator node is the node to generate random value of size defined in "size" argument. This
+argument have to be an integer variable, as previously converted by convert function (4).
+This node also defines the argument 'type' which can have one of the following values to
+generate a random string according to user needs: numeric, alphanumeric, hexadecimal, alpha.
+Resulting code will be stored in the variable specified by tag body.
+
+6) Return node
+--------------
+
+The return node specifies we want to return from the function at this point. The tag body can
+be either "success" or "error" which specifies the return value as defined in the root node.

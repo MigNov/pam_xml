@@ -1,0 +1,21 @@
+PAM-XML TODO LIST
+=================
+
+There is a list of some features to be implemented:
+
+- MySQL database connection (requires DB Connection specification and query specification)
+- PgSQL database connection (dtto)
+- Binary file run with specifications how to pass (\n like to mod_ext_auth modules, or command line arguments)
+- Setting up variables for shell ?
+
+SSH Key authentication overrides all PAM rules, not applicable for this type. Alternative is to append following
+lines to /etc/bashrc:
+
+tail -n 100 /var/log/secure | grep "publickey" | grep $(date | awk '{split($0, a, " "); print a[4]}') > /dev/null 2>&1
+if [ "$?" -eq 0 ]; then
+        export LOGTYPE="KeyAuth"
+else
+        export LOGTYPE="Password"
+fi
+
+And check for LOGTYPE="KeyAuth" - this one could be handled a different way.
