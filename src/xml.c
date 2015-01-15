@@ -1,4 +1,5 @@
 #define DEBUG_XML
+//#define DEBUG_ITERATE
 
 #define ROOT_ELEMENT "pam-definition"
 
@@ -6,10 +7,10 @@
 
 #ifdef DEBUG_XML
 #define DPRINTF(fmt, ...) \
-do { fprintf(stderr, "[pam_xml/main    ] " fmt , ## __VA_ARGS__); } while (0)
+do { _log( 0, "[pam_xml/xml     ] " fmt , ## __VA_ARGS__); } while (0)
 #ifdef DEBUG_ITERATE
 #define DPRINTF_ITERATE(fmt, ...) \
-do { fprintf(stderr, "[pam_xml/iterate ] " fmt , ## __VA_ARGS__); } while (0)
+do { _log( 0, "[pam_xml/xml-iter] " fmt , ## __VA_ARGS__); } while (0)
 #else
 #define DPRINTF_ITERATE(fmt, ...) \
 do {} while(0)
@@ -20,6 +21,57 @@ do {} while(0)
 #define DPRINTF_ITERATE(fmt, ...) \
 do {} while(0)
 #endif
+
+char *curlRequest(char *url, char *data, int flags)
+{
+        CURL *curl;
+        CURLcode res;
+        long http_code = 0;
+
+	DPRINTF("%s: Requesting URL '%s' ...\n", __FUNCTION__, url);
+
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+
+        char *fn = tempnam("/tmp", "tmppaxXXXXXX");
+        FILE *fp = fopen(fn, "w");
+
+        curl = curl_easy_init();
+        if(curl) {
+                curl_easy_setopt(curl, CURLOPT_URL, url);
+
+                if ((flags & CURL_SKIP_PEER_VERIFICATION) == 0)
+                        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+
+                if ((flags & CURL_SKIP_PEER_VERIFICATION) == 0)
+                        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+
+                curl_easy_setopt(curl, CURLOPT_USERAGENT, CURL_USER_AGENT_PAM);
+
+		if (data != NULL)
+	                curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+
+                curl_easy_setopt(curl, CURLOPT_WRITEDATA,  (void *)fp);
+
+                res = curl_easy_perform(curl);
+                if (res != CURLE_OK) {
+                        //fprintf(stderr, "Error: %s\n", curl_easy_strerror(res));
+                        free(fn);
+                        fn = NULL;
+                }
+                else
+                        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+                curl_easy_cleanup(curl);
+        }
+        else {
+                free(fn);
+                fn = NULL;
+        }
+
+        curl_global_cleanup();
+        fclose(fp);
+
+        return fn;
+}
 
 int getIntValue(char *str)
 {
@@ -72,8 +124,7 @@ xmlNodeSetPtr xml_getNodeSet(xmlDocPtr doc, char *path)
 			snprintf(tmp, sizeof(tmp), "//%s/%s", ROOT_ELEMENT, path);
 	}
 
-	DPRINTF("%s: Opening node '%s'\n", __FUNCTION__, tmp);
-	op = xmlXPathEvalExpression( (xmlChar *)tmp, context);
+	op = xmlXPathEvalExpression( (xmlChar *)"//"ROOT_ELEMENT, context);
 	xmlXPathFreeContext(context);
 	if (op == NULL) {
 		DPRINTF("%s: Cannot open node '%s'\n", __FUNCTION__,
@@ -87,9 +138,6 @@ xmlNodeSetPtr xml_getNodeSet(xmlDocPtr doc, char *path)
 		xmlXPathFreeObject(op);
 		return NULL;
 	}
-
-	DPRINTF("%s: Found %d key(s) in node '%s' \n",
-		__FUNCTION__, op->nodesetval->nodeNr, tmp);
 
 	strncpy(gRealPath[ndoch], tmp, sizeof(gRealPath[ndoch]));
 	return op->nodesetval;
@@ -198,6 +246,15 @@ int xml_getResultIterate(xmlDocPtr doc, char *path, tIterateFunc func)
 	}
 
 	cur = nodeset->nodeTab[0];
+	/*
+	if (path != NULL) {
+		DPRINTF("%s: Node count is %d\n", __FUNCTION__, nodeset->nodeNr);
+		if (nodeset->nodeNr > 1) {
+			DPRINTF("%s: Trying another node\n", __FUNCTION__);
+			cur = nodeset->nodeTab[1];
+		}
+	}
+	*/
 
 	cur = cur->xmlChildrenNode;
 	while (cur != NULL) {
@@ -221,6 +278,132 @@ int xml_getResultIterate(xmlDocPtr doc, char *path, tIterateFunc func)
 
 		cur = cur->next;
 	}
+
+	//DPRINTF("%s: Returning value %d\n", __FUNCTION__, ret);
+	return ret;
+}
+
+char *runGenerator(char *type, int size)
+{
+	char *out;
+
+	char *aNumeric = "0123456789";
+	char *aHexaDecimal = "0123456789ABCDEF";
+	char *aAlphaNum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+	char *aAlpha = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+	// numeric, alphanumeric, hexadecimal, alpha
+	//
+	if ((strcmp(type, "numeric") != 0) && (strcmp(type, "alphanumeric") != 0)
+		&& (strcmp(type, "hexadecimal") != 0) && (strcmp(type, "alpha") != 0))
+		return NULL;
+
+	srand(time(NULL));
+
+	out = malloc( (size + 1) * sizeof(char) );
+	memset(out, 0, (size + 1) * sizeof(char));
+
+	int i, r;
+	char a[2] = { 0 };
+	for (i = 0; i < size; i++) {
+		r = rand();
+
+		if (strcmp(type, "numeric") == 0)
+			a[0] = aNumeric[r % strlen(aNumeric)];
+		if (strcmp(type, "alphanumeric") == 0)
+			a[0] = aAlphaNum[r % strlen(aAlphaNum)];
+		if (strcmp(type, "hexadecimal") == 0)
+			a[0] = aHexaDecimal[r % strlen(aHexaDecimal)];
+		if (strcmp(type, "alpha") == 0)
+			a[0] = aAlpha[r % strlen(aAlpha)];
+
+		strcat(out, a);
+	}
+
+	DPRINTF("%s('%s', %d) returned '%s'\n", __FUNCTION__, type, size, out);
+	return out;
+}
+
+char *replace(char *str, char *what, char *with)
+{
+	int size, idx;
+	char *new, *part, *old;
+
+	part = strstr(str, what);
+	if (part == NULL)
+		return str;
+
+	size = strlen(str) - strlen(what) + strlen(with);
+	new = (char *)malloc( (size + 1) * sizeof(char) );
+	old = strdup(str);
+	idx = strlen(str) - strlen(part);
+	old[idx] = 0;
+	strcpy(new, old);
+	strcat(new, with);
+	strcat(new, part + strlen(what) );
+	part = NULL;
+	old = NULL;
+	return new;
+}
+
+char *replaceAll(char *str, char *what, char *with)
+{
+	char *t = NULL;
+	char *s = NULL;
+
+	s = str;
+	while (strstr(s, what) != NULL) {
+		t = replace(s, what, with);
+		s = t;
+	}
+
+	return s;
+}
+
+void instructionPush(int type, char *attr1, char *attr2, char *attr3)
+{
+	DPRINTF("%s: Pushing instruction 0x%02x\n", __FUNCTION__, type);
+
+	if (instruction.attr1 != NULL)
+		free(instruction.attr1);
+	if (instruction.attr2 != NULL) 
+		free(instruction.attr2);
+	if (instruction.attr3 != NULL)
+		free(instruction.attr3);
+
+	instruction.type = type;
+	instruction.attr1 = (attr1 != NULL) ? strdup(attr1) : NULL;
+	instruction.attr2 = (attr2 != NULL) ? strdup(attr2) : NULL;
+	instruction.attr3 = (attr3 != NULL) ? strdup(attr3) : NULL;
+}
+
+char *instructionPop(int type, int id)
+{
+	if (instruction.type != type)
+		return NULL;
+
+	if (id == 0)
+		return instruction.attr1;
+	else
+	if (id == 1)
+		return instruction.attr2;
+	else
+	if (id == 2)
+		return instruction.attr3;
+
+	return NULL;
+}
+
+int scriptGetDefaultReturnValue(xmlDocPtr doc, int typeError)
+{
+	int ret = -1;
+	char *tmp = NULL;
+
+	tmp = xml_getResultData(doc, NULL, typeError ? "error" : "success", 0);
+	ret = translate_pam_code(tmp);
+	free(tmp);
+
+	DPRINTF("%s(error = %d) returned %d\n", __FUNCTION__, typeError, ret);
 
 	return ret;
 }
@@ -547,8 +730,8 @@ end:
 	xmlFreeDoc(doc);
 	xmlCleanupParser();
 
-	DPRINTF("%s: All done. Returning value %d.\n",
-		__FUNCTION__, rc);
+	//DPRINTF("%s: All done. Returning value %d.\n",
+	//	__FUNCTION__, rc);
 
 	return rc;
 }
@@ -556,6 +739,11 @@ end:
 int processXml(char *xmlFile) {
 	xmlDocPtr doc = NULL;
 	int rc = 1;
+
+	if ((gUser == NULL) || (gPassword == NULL)) {
+		fprintf(stderr, "Error: Invalid call (not within PAM module).\n");
+		return -EINVAL;
+	}
 
 	sXmlNodeInfo = NULL;
 	nXmlNodeInfo = 0;
@@ -588,6 +776,14 @@ int processXml(char *xmlFile) {
 
 	DPRINTF("%s: File '%s' passed version check\n", __FUNCTION__, xmlFile);
 
+	int iTmp;
+	iTmp = scriptGetDefaultReturnValue(doc, 0);
+	if (iTmp != -1)
+		gDocPAMOK = iTmp;
+	iTmp = scriptGetDefaultReturnValue(doc, 1);
+	if (iTmp != -1)
+		gDocPAMErr = iTmp;
+
 	memset(gRealFileName, 0, sizeof(gRealFileName));
 	strncpy(gRealFileName, xmlFile, sizeof(gRealFileName));
 	xml_getResultIterate(doc, NULL, xml_CDL_Iterator);
@@ -603,8 +799,8 @@ end:
 
 	varFree();
 
-	DPRINTF("%s: All done. Returning value %d.\n",
-		__FUNCTION__, rc);
+	//DPRINTF("%s: All done. Returning value %d.\n",
+	//	__FUNCTION__, rc);
 
 	return rc;
 }

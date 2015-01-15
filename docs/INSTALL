@@ -11,7 +11,24 @@ directory is necessary.
 To the beginning of the file prepend pam_xml.so library line right after pam_env line, e.g.:
 
         auth        required      pam_env.so
-        auth        sufficient    pam_xml.so file=/etc/pam.xml/example.xml
+	auth        sufficient    pam_xml.so algo=sha256 ruleset=/etc/pam.rules/example.xml
         auth        required      pam_deny.so
 
-The "file=" argument defines the path to PAM XML definition file.
+The "ruleset=" argument defines the path to PAM XML definition file. 
+
+    The supported arguments are:
+
+        "logfile" to save a log file (must be a local file, usually in /tmp)
+        "algo" to specify password hashing algorithm, can be one of following:
+             "none"/"disable" to disable hashing - password WILL be in plain text
+             "md5" to hash using MD5 function
+             "sha1" to hash using SHA-1 function
+             "sha256" to hash using SHA-256 function
+        "ruleset" to specify location of ruleset XML file, can be either local file or any location that can accepted
+              by libcurl library. For CURL downloads the User-Agent is set to "PAM-XML Authentication Service/" with
+              VERSION string appended.
+        "envruleset" to enable setting up PAM_XML_RULESET environment variable, useful for debugging purposes when
+              you use multiple PAM-XML definition files.
+
+    Usually it is a good practice to set algorithm to SHA256 and verify User-Agent in case of HTTP-based ruleset
+    files (see pam-test.php in data directory for example).

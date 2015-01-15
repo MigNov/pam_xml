@@ -12,6 +12,10 @@
 #include "config.h"
 #endif
 
+#define	VERSION				"0.0.1"
+#define	CURL_USER_AGENT_PAM		"PAM-XML Authentication Service/" VERSION
+#define	CURL_SKIP_PEER_VERIFICATION	0x01
+
 #include <errno.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -26,6 +30,17 @@
 #include <time.h>
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
+#include <stdarg.h>
+#include <sys/stat.h>
+#include <dlfcn.h>
+
+#include <curl/curl.h>
+
+#include <security/pam_appl.h>
+#include <security/pam_modules.h>
+
+#include <openssl/md5.h>
+#include <openssl/sha.h>
 
 #ifdef DEBUG_ALL
 #define DEBUG
@@ -41,10 +56,28 @@
 #define	PIN_MODE_OUTPUT		0x02
 #define	PIN_MODE_CONTINUOUS	0x20
 
+#define	INS_READ		0x01
+#define	INS_DATABASE		0x02
+
+pam_handle_t *gPamh;
+
 char gRealPath[MAX_LEVELS][8192];
 char gRealFileName[8192];
 xmlDocPtr doch[MAX_LEVELS];
 int ndoch;
+
+char *gFn;
+char *gRuleset;
+char *gPlainPassword;
+char *gAlgo;
+char *gLogFile;
+char *gUser;
+char *gPassword;
+int gRulesetAdd;
+int gIsValid;
+int gDocPAMOK;
+int gDocPAMErr;
+int shouldReturn;
 
 typedef struct tAttributes {
 	char *name;
@@ -66,6 +99,31 @@ typedef struct tTokenizer {
 	char **tokens;
 	int numTokens;
 } tTokenizer;
+
+typedef struct tInstruction {
+	int type;
+	char *attr1;
+	char *attr2;
+	char *attr3;
+} tInstruction;
+
+typedef struct tVariable {
+	int type;
+	char *name;
+	char *sValue;
+	int iValue;
+} tVariable;
+
+// No need to have it dynamic yet
+#define MAX_VARS	0xFF
+
+#define	VAR_STR		0x01
+#define	VAR_INT		0x02
+
+tVariable gVars[MAX_VARS];
+int nVars;
+
+tInstruction instruction;
 
 tXmlNodeInfo *sXmlNodeInfo;
 int           nXmlNodeInfo;
@@ -97,6 +155,25 @@ int varDel(char *name);
 char *varGet(char *name);
 void varDump(void);
 void varFree(void);
+
+int translate_pam_code(char *code);
+int scriptGetDefaultReturnValue(xmlDocPtr doc, int typeError);
+void instructionPush(int type, char *attr1, char *attr2, char *attr3);
+char *instructionPop(int type, int id);
+char *replace(char *str, char *what, char *with);
+char *replaceAll(char *str, char *what, char *with);
+char *runGenerator(char *type, int size);
+char *curlRequest(char *url, char *data, int flags);
+char *getConversation(char *prompt, int echo);
+
+int algGetType(char *name);
+int isAlgoSupported(char *name);
+char *hashMD5(char *string);
+char *hashSHA1(char *string);
+char *hashSHA256(char *string);
+
+void _log(int inc, const char *format, ...);
+char *databaseSelect(char *type, char *connstr, char *query);
 
 /* Implementation stuff */
 //int xml_CDL_Iterator(char *path, char *name, xmlDocPtr doc, xmlNodePtr node);

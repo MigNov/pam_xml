@@ -25,7 +25,15 @@ variable to contain string after the colon sign.
 2) Read block
 -------------
 
-The read block can take one of three options for "type" argument: file, url or input.
+Types support:
+	- file
+	- binary
+	- return-code
+	- url
+	- input
+
+The read block can take one of three options for "type" argument: file, url, input, binary
+or return-code.
 Type "file" can be used to read the file specified by "data" argument from the filesystem.
 The result of this filewill be saved to variable referenced by the "output" argument.
 The "url" type can be used to access the URL, typically a web server, defined in the
@@ -35,6 +43,10 @@ by the username of the user being logged-in or %RHOST% that will be substituted 
 remote hostname (in case of SSH connection - will be NULL for case of local connection).
 The "input" type will show user a prompt defined in "data" with optional echoing based
 on the "echo" attribute for the "data" argument, this attribute defaults to false.
+The "binary" type can read the output of the executable (most likely binary) file.
+The "return-code" type can open a write descriptor the a specified executable file and
+pass "input" string to the executable. The output is the return value that will be saved
+into the variable.
 
 For all cases the value saved to "output" argument is NULL if read fails (file does not
 exist, URL is not accessible, user breaks execution of PAM_CONV dialog etc.).
@@ -74,3 +86,41 @@ Resulting code will be stored in the variable specified by tag body.
 
 The return node specifies we want to return from the function at this point. The tag body can
 be either "success" or "error" which specifies the return value as defined in the root node.
+
+7) Database node
+----------------
+
+Database node specifies the database connection along with the SELECT statement to verify the
+authentication. It accepts mainly the "type" argument (currently only 'pgsql' type is supported),
+"connstr" argument with the connection string to be used to connect to database. The connection
+string can be read from the file using the file:// handler, with optional base64 encoding using
+the file+b64:// handler. The password could be preprocessed by specifying the "password-preprocess"
+definition with optional hashing algorithm application on this preprocessed string - this can be
+specified by setting up "alg" attribute of the database node.
+
+Within this node the select subnode should be provided to identify how the authentication should
+be verified. The select node should have the "table", "field" and "condition" arguments defined.
+The preprocessed password is available in the %PREPPASSWORD% variable, if defined.
+The example definition to read base64 encoded connection string from /etc/pam.rules/connstr.b64
+file, preprocess the password as: SHA256('$USERNAME:Realm:PASSWORD'), and run query as:
+SELECT COUNT(*) FROM users WHERE userid = $USERNAME AND password = SHA256('$USERNAME:Realm:PASSWORD')
+
+can be defined as follows:
+
+<database type="pgsql" connstr="file+b64:///etc/pam.rules/connstr.b64" password-preprocess="%USERNAME%:Member:%PLAINPASSWORD%" alg="SHA256">
+	<select table="users" field="COUNT(*)" condition="userid = '%USERNAME%' AND password = '%PREPPASSWORD%'">count</select>
+</database>
+
+8) Env node
+-----------
+
+Environment node can specify the enviroment variables specified by the "name" attribute of the node. The body
+of this argument is not being substituted from variables because of the security reasons. It is useful to e.g.
+setup the authentication type or any other environment variables. All the variable names are being prefixed
+by "PAM_XML_" string.
+
+Example: <env name="AUTH_TYPE">test</env>
+
+This will set the environment variable PAM_XML_AUTH_TYPE to value of "test". This variable can be accessed from
+within the user shell, e.g. echo $PAM_XML_AUTH_TYPE from bash shell.
+
