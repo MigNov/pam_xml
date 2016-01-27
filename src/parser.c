@@ -154,8 +154,11 @@ char *saveTempXml(xmlDocPtr doc, xmlNodePtr node)
 	char *xre = NULL;
 	int idx = 0;
 
-	char *fn1 = tempnam("/tmp", "pamxmlXXXXX");
-	char *fn2 = tempnam("/tmp", "pamxmqXXXXX");
+	char fn1[] = "/tmp/pamxmlXXXXXX";
+	char fn2[] = "/tmp/pamxmqXXXXXX";
+
+	close(mkstemp(fn1));
+	close(mkstemp(fn2));
 
 	FILE *fp = fopen(fn1, "w");
 	xmlElemDump(fp, doc, node);
