@@ -33,6 +33,7 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <dlfcn.h>
+#include <security/pam_ext.h>
 
 #include <curl/curl.h>
 
@@ -166,8 +167,8 @@ char *runGenerator(char *type, int size);
 char *curlRequest(char *url, char *data, int flags);
 char *getConversation(char *prompt, int echo);
 
-int algGetType(char *name);
-int isAlgoSupported(char *name);
+int algGetType(const char *name);
+int isAlgoSupported(const char *name);
 char *hashMD5(char *string);
 char *hashSHA1(char *string);
 char *hashSHA256(char *string);

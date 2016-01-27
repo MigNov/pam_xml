@@ -654,19 +654,19 @@ int pam_set_item(pam_handle_t *pamh, int item_type, const void *item)
 	case PAM_RHOST :
 	case PAM_RUSER :
 	case PAM_USER_PROMPT :
-		sprintf(buffer, "\"%s\"", item);
+		sprintf(buffer, "\"%s\"", (const char *)item);
 		s = buffer;
 		break;
 
 	case PAM_CONV :
 		conv = (struct pam_conv *) item;
-		sprintf(buffer, "c%8.8X", conv);
+		sprintf(buffer, "c%8.8X", (unsigned int)conv); // is cast OK?
 		s = buffer;
 		item = (const void *) pamconv_prep(conv);
 		break;
 
 	case PAM_FAIL_DELAY :
-		sprintf(buffer, "p%8.8X", item);
+		sprintf(buffer, "p%8.8X", (unsigned int)item); // is cast OK?
 		s = buffer;
 		break;
 
@@ -718,22 +718,22 @@ int pam_get_item(const pam_handle_t *pamh, int item_type, const void **item)
 	case PAM_RHOST :
 	case PAM_RUSER :
 	case PAM_USER_PROMPT :
-		sprintf(buffer, "\"%s\"", *item);
+		sprintf(buffer, "\"%s\"", (const char *)*item); // is cast OK?
 		s = buffer;
 		break;
 
 	case PAM_CONV :
 		conv = (struct pam_conv *) *item;
 #ifdef ____WITH_CONV
-		sprintf(buffer, "c%8.8X", conv->appdata_ptr);
+		sprintf(buffer, "c%8.8X", (unsigned int)conv->appdata_ptr); // is cast OK?
 #else
-		sprintf(buffer, "c%8.8X", conv);
+		sprintf(buffer, "c%8.8X", (unsigned int)conv); // is cast OK?
 #endif
 		s = buffer;
 		break;
 
 	case PAM_FAIL_DELAY :
-		sprintf(buffer, "p%8.8X", *item);
+		sprintf(buffer, "p%8.8X", (unsigned int)*item); // is cast OK?
 		s = buffer;
 		break;
 	
@@ -899,7 +899,7 @@ void dumpArgs(const char *func, int argc, const char **argv)
 		DPRINTF("[dumpArgs] %s arg[%d]: %s", func, i, argv[i]);
 }
 
-int algGetType(char *name)
+int algGetType(const char *name)
 {
 	int ret = -1;
 
@@ -916,7 +916,7 @@ int algGetType(char *name)
 	return ret;
 }
 
-int isAlgoSupported(char *name)
+int isAlgoSupported(const char *name)
 {
 	int ret = algGetType(name) > 0 ? 1 : 0;
 
@@ -927,9 +927,8 @@ int isAlgoSupported(char *name)
 PAM_EXTERN int pam_sm_authenticate(pam_handle_t * pamh, int flags
                ,int argc, const char **argv)
 {
-	unsigned int ctrl;
 	int retval;
-	const char *name, *p;
+	const char *name;
 	char *finalFileDel = NULL;
 
 	gPamh = pamh;
